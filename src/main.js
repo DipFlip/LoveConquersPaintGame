@@ -417,10 +417,17 @@ window.addEventListener("keydown", e => { if (["ArrowUp", "ArrowDown", "ArrowLef
 window.addEventListener("keyup", e => keys.delete(e.code));
 
 function moveJoystick(clientX, clientY) {
-  const dx = clientX - joystick.originX, dy = clientY - joystick.originY;
-  const distance = Math.hypot(dx, dy), maxDistance = 46;
-  const scale = distance > maxDistance ? maxDistance / distance : 1;
-  const nubX = dx * scale, nubY = dy * scale;
+  let dx = clientX - joystick.originX, dy = clientY - joystick.originY;
+  let distance = Math.hypot(dx, dy);
+  const maxDistance = 46;
+  if (distance > maxDistance) {
+    const overflow = distance - maxDistance;
+    joystick.originX += dx / distance * overflow; joystick.originY += dy / distance * overflow;
+    const frameRect = gameFrame.getBoundingClientRect();
+    joystickEl.style.left = `${joystick.originX - frameRect.left}px`; joystickEl.style.top = `${joystick.originY - frameRect.top}px`;
+    dx = clientX - joystick.originX; dy = clientY - joystick.originY; distance = maxDistance;
+  }
+  const nubX = dx, nubY = dy;
   joystick.dx = distance ? dx / distance : 0; joystick.dy = distance ? dy / distance : 0;
   joystick.strength = clamp(distance / maxDistance, 0, 1);
   joystickNub.style.transform = `translate(${nubX}px, ${nubY}px)`;
