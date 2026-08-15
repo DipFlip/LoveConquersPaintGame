@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#fff8ed" />
+    <meta name="description" content="Circle the city, spread some love, and make the dull delightful." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💗</text></svg>" />
+    <title>Love Conquers All</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@500&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Love Conquers All home">
+          <span class="brand-mark">♥</span>
+          <span>LOVE<br />CONQUERS<br />ALL</span>
+        </a>
+
+        <div class="status" aria-label="Game status">
+          <div class="stat score-stat">
+            <span class="eyebrow">NICEIFIED</span>
+            <strong><span id="score">0</span><small>%</small></strong>
+          </div>
+          <div class="meter" aria-hidden="true"><span id="meterFill"></span></div>
+          <div class="stat time-stat">
+            <span class="eyebrow">TIME LEFT</span>
+            <strong id="time">1:00</strong>
+          </div>
+        </div>
+
+        <button class="sound-btn" id="soundBtn" type="button" aria-label="Toggle sound" title="Toggle sound">
+          <span class="sound-bars"><i></i><i></i><i></i></span>
+        </button>
+      </header>
+
+      <section class="game-frame" id="gameFrame">
+        <canvas id="game" width="1448" height="1086" aria-label="Love Conquers All game"></canvas>
+        <div class="scanlines" aria-hidden="true"></div>
+
+        <div class="toast" id="toast" aria-live="polite"></div>
+        <div class="boost-pill" id="boostPill"><span>APPLE POWER</span><i id="boostBar"></i></div>
+
+        <div class="start-screen panel" id="startScreen">
+          <div class="panel-sticker">60 SEC CITY MAKEOVER</div>
+          <div class="hero-heart"><span>♥</span></div>
+          <p class="kicker">A tiny game about making things nicer.</p>
+          <h1>LOVE<br /><em>CONQUERS</em><br />ALL.</h1>
+          <p class="intro">Loop through the dull city and return to the pink to claim everything inside. Dodge the leaves. Grab the apples. Spread the love.</p>
+          <button class="primary-btn" id="startBtn" type="button"><span>START NICEIFYING</span><b>→</b></button>
+          <div class="instructions">
+            <span><kbd>WASD</kbd> or <kbd>ARROWS</kbd> to move</span>
+            <span><i class="apple-icon">●</i> Apple = 4s boost</span>
+            <span><i class="leaf-icon">◆</i> Leaves hurt outside</span>
+          </div>
+        </div>
+
+        <div class="end-screen panel hidden" id="endScreen">
+          <div class="panel-sticker">THE CITY FEELS DIFFERENT</div>
+          <p class="kicker">Time's up, lover.</p>
+          <h2><span id="finalScore">0</span><small>%</small></h2>
+          <h3 id="finalTitle">A LOVELY START!</h3>
+          <p id="finalCopy">A little kindness goes a long way. Another round?</p>
+          <button class="primary-btn" id="restartBtn" type="button"><span>NICEIFY AGAIN</span><b>↻</b></button>
+        </div>
+
+        <div class="touch-controls" aria-label="Touch controls">
+          <button data-dir="up" aria-label="Move up">↑</button>
+          <button data-dir="left" aria-label="Move left">←</button>
+          <button data-dir="down" aria-label="Move down">↓</button>
+          <button data-dir="right" aria-label="Move right">→</button>
+        </div>
+      </section>
+
+      <footer>
+        <p>Circle it. Claim it. <span>Love it.</span></p>
+        <p class="asset-note" id="assetNote">Using a playful preview map · add <code>stad_dull.png</code> + <code>stad_nice.png</code> to <code>/public</code></p>
+      </footer>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
