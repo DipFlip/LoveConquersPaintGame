@@ -28,6 +28,10 @@ const ui = {
   assetNote: document.querySelector("#assetNote")
 };
 
+const joystickEl = document.querySelector("#virtualJoystick");
+const joystickNub = document.querySelector("#joystickNub");
+const joystick = { active: false, pointerId: null, originX: 0, originY: 0, dx: 0, dy: 0, strength: 0 };
+
 const keys = new Set();
 const player = { x: W / 2, y: H / 2, vx: 0, vy: 0, angle: 0, radius: 13, outside: false, trail: [], invuln: 0 };
 let state = "menu";
@@ -57,6 +61,21 @@ function distanceToSegment(point, start, end) {
   if (!lengthSquared) return dist(point, start);
   const t = clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared, 0, 1);
   return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
+}
+
+function pointInPolygon(point, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i], b = polygon[j];
+    const crosses = (a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function formatTime(seconds) {
+  const whole = Math.max(0, Math.ceil(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
 function roundedRect(g, x, y, w, h, r) {
@@ -182,6 +201,7 @@ function spawnLeaf() {
 }
 
 function beginGame() {
+  releaseJoystick();
   resetMask(); recalcScore();
   Object.assign(player, { x: W / 2, y: H / 2, vx: 0, vy: 0, angle: 0, outside: false, trail: [], invuln: 1 });
   timeLeft = 60; boost = 0; apples = []; leaves = []; particles = []; floatingTexts = []; nextApple = 1.8; nextLeaf = .5;
@@ -201,11 +221,18 @@ function closeTerritory() {
   mctx.save();
   mctx.filter = "blur(12px)"; mctx.drawImage(captureLayer, 0, 0);
   mctx.restore();
+  const capturedLeaves = leaves.filter(leaf => !leaf.hit && pointInPolygon(leaf, player.trail));
+  capturedLeaves.forEach(leaf => {
+    leaf.hit = true;
+    timeLeft += 5;
+    burst(leaf.x, leaf.y, 16, ["#c8ef65", "#ffcf54", "#ff4f91", "#ffffff"], 190);
+    floatingTexts.push({ x: leaf.x, y: leaf.y, text: "+5 SECONDS", life: 1.5 });
+  });
   recalcScore();
   const gained = Math.max(1, score - before);
   floatingTexts.push({ x: player.x, y: player.y - 30, text: `+${gained}% LOVE`, life: 1.5 });
   burst(player.x, player.y, 35, ["#ff4f91", "#ffd35f", "#c8ef65", "#ffffff"], 230);
-  showToast(gained >= 8 ? "BIG LOVE ENERGY!" : "AREA NICEIFIED!");
+  showToast(capturedLeaves.length ? `LEAF LOVED! +${capturedLeaves.length * 5} SECONDS` : gained >= 8 ? "BIG LOVE ENERGY!" : "AREA NICEIFIED!");
   beep(620, .08, "triangle", .05); setTimeout(() => beep(910, .12, "triangle", .04), 85);
   player.trail = []; player.outside = false;
 }
@@ -225,7 +252,7 @@ function update(dt) {
   if (state !== "playing") return;
 
   timeLeft -= dt; boost = Math.max(0, boost - dt); player.invuln = Math.max(0, player.invuln - dt); shake *= Math.pow(.02, dt);
-  ui.time.textContent = `0:${Math.max(0, Math.ceil(timeLeft)).toString().padStart(2, "0")}`;
+  ui.time.textContent = formatTime(timeLeft);
   ui.time.style.color = timeLeft < 10 ? "#f52e79" : "";
   ui.boost.classList.toggle("show", boost > 0); ui.boostBar.style.transform = `scaleX(${boost / 4})`;
   if (timeLeft <= 0) return endGame();
@@ -235,9 +262,11 @@ function update(dt) {
   if (keys.has("ArrowRight") || keys.has("KeyD") || keys.has("right")) dx++;
   if (keys.has("ArrowUp") || keys.has("KeyW") || keys.has("up")) dy--;
   if (keys.has("ArrowDown") || keys.has("KeyS") || keys.has("down")) dy++;
+  if (joystick.active && joystick.strength > .08) { dx = joystick.dx; dy = joystick.dy; }
   if (dx || dy) {
     const len = Math.hypot(dx, dy); dx /= len; dy /= len; player.angle = Math.atan2(dy, dx);
-    const speed = boost > 0 ? 856 : 380; player.vx += (dx * speed - player.vx) * Math.min(1, dt * 12); player.vy += (dy * speed - player.vy) * Math.min(1, dt * 12);
+    const inputStrength = joystick.active ? Math.max(.28, joystick.strength) : 1;
+    const speed = (boost > 0 ? 856 : 380) * inputStrength; player.vx += (dx * speed - player.vx) * Math.min(1, dt * 12); player.vy += (dy * speed - player.vy) * Math.min(1, dt * 12);
   } else { player.vx *= Math.pow(.0005, dt); player.vy *= Math.pow(.0005, dt); }
   player.x = clamp(player.x + player.vx * dt, 16, W - 16); player.y = clamp(player.y + player.vy * dt, 16, H - 16);
 
@@ -313,6 +342,7 @@ function render() {
 }
 
 function endGame() {
+  releaseJoystick();
   state = "ended"; timeLeft = 0; ui.time.textContent = "0:00"; ui.finalScore.textContent = score;
   const results = score >= 70 ? ["LOVE LEGEND!", "The whole block is blushing. Honestly iconic."] : score >= 40 ? ["HEART-WARMING!", "You left this little city much brighter than you found it."] : score >= 15 ? ["A LOVELY START!", "A little kindness goes a long way. Another round?"] : ["LOVE NEEDS YOU!", "The leaves were ruthless. Give the city another chance?"];
   ui.finalTitle.textContent = results[0]; ui.finalCopy.textContent = results[1];
@@ -326,10 +356,34 @@ function loop(now) {
 
 window.addEventListener("keydown", e => { if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) e.preventDefault(); keys.add(e.code); if (e.code === "Space" && state !== "playing") beginGame(); });
 window.addEventListener("keyup", e => keys.delete(e.code));
-document.querySelectorAll(".touch-controls button").forEach(btn => {
-  const dir = btn.dataset.dir; const down = e => { e.preventDefault(); keys.add(dir); }; const up = e => { e.preventDefault(); keys.delete(dir); };
-  btn.addEventListener("pointerdown", down); btn.addEventListener("pointerup", up); btn.addEventListener("pointercancel", up); btn.addEventListener("pointerleave", up);
+
+function moveJoystick(clientX, clientY) {
+  const dx = clientX - joystick.originX, dy = clientY - joystick.originY;
+  const distance = Math.hypot(dx, dy), maxDistance = 46;
+  const scale = distance > maxDistance ? maxDistance / distance : 1;
+  const nubX = dx * scale, nubY = dy * scale;
+  joystick.dx = distance ? dx / distance : 0; joystick.dy = distance ? dy / distance : 0;
+  joystick.strength = clamp(distance / maxDistance, 0, 1);
+  joystickNub.style.transform = `translate(${nubX}px, ${nubY}px)`;
+}
+
+function releaseJoystick(e) {
+  if (!joystick.active || (e && e.pointerId !== joystick.pointerId)) return;
+  joystick.active = false; joystick.pointerId = null; joystick.dx = 0; joystick.dy = 0; joystick.strength = 0;
+  joystickEl.classList.remove("active"); joystickNub.style.transform = "";
+}
+
+canvas.addEventListener("pointerdown", e => {
+  if (state !== "playing" || e.button > 0) return;
+  e.preventDefault();
+  const frameRect = gameFrame.getBoundingClientRect();
+  joystick.active = true; joystick.pointerId = e.pointerId; joystick.originX = e.clientX; joystick.originY = e.clientY;
+  joystickEl.style.left = `${e.clientX - frameRect.left}px`; joystickEl.style.top = `${e.clientY - frameRect.top}px`;
+  joystickEl.classList.add("active"); joystickNub.style.transform = ""; canvas.setPointerCapture(e.pointerId);
 });
+canvas.addEventListener("pointermove", e => { if (joystick.active && e.pointerId === joystick.pointerId) { e.preventDefault(); moveJoystick(e.clientX, e.clientY); } });
+canvas.addEventListener("pointerup", releaseJoystick); canvas.addEventListener("pointercancel", releaseJoystick);
+canvas.addEventListener("contextmenu", e => e.preventDefault());
 document.querySelectorAll("[data-title-start]").forEach(button => button.addEventListener("click", beginGame));
 ui.restartBtn.addEventListener("click", beginGame);
 ui.sound.addEventListener("click", () => { muted = !muted; ui.sound.classList.toggle("muted", muted); if (!muted) beep(620); });
