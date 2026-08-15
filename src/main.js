@@ -12,8 +12,10 @@ const mctx = mask.getContext("2d", { willReadFrequently: true });
 const dull = document.createElement("canvas");
 const nice = document.createElement("canvas");
 const reveal = document.createElement("canvas");
-dull.width = nice.width = reveal.width = W; dull.height = nice.height = reveal.height = H;
+const captureLayer = document.createElement("canvas");
+dull.width = nice.width = reveal.width = captureLayer.width = W; dull.height = nice.height = reveal.height = captureLayer.height = H;
 const rctx = reveal.getContext("2d");
+const cctx = captureLayer.getContext("2d");
 
 const ui = {
   start: document.querySelector("#startScreen"), end: document.querySelector("#endScreen"),
@@ -48,6 +50,14 @@ let audioCtx;
 function rand(min, max) { return min + Math.random() * (max - min); }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function distanceToSegment(point, start, end) {
+  const dx = end.x - start.x, dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (!lengthSquared) return dist(point, start);
+  const t = clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared, 0, 1);
+  return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
+}
 
 function roundedRect(g, x, y, w, h, r) {
   g.beginPath(); g.roundRect(x, y, w, h, r); g.fill();
@@ -183,10 +193,14 @@ function beginGame() {
 function closeTerritory() {
   if (player.trail.length < 5) { player.trail = []; player.outside = false; return; }
   const before = score;
-  mctx.save(); mctx.fillStyle = "#fff"; mctx.strokeStyle = "#fff"; mctx.lineJoin = "round"; mctx.lineCap = "round"; mctx.lineWidth = 28;
-  mctx.beginPath(); mctx.moveTo(player.trail[0].x, player.trail[0].y);
-  player.trail.slice(1).forEach(p => mctx.lineTo(p.x, p.y));
-  mctx.closePath(); mctx.fill(); mctx.stroke(); mctx.restore();
+  cctx.clearRect(0, 0, W, H);
+  cctx.save(); cctx.fillStyle = "#fff"; cctx.strokeStyle = "#fff"; cctx.lineJoin = "round"; cctx.lineCap = "round"; cctx.lineWidth = 28;
+  cctx.beginPath(); cctx.moveTo(player.trail[0].x, player.trail[0].y);
+  player.trail.slice(1).forEach(p => cctx.lineTo(p.x, p.y));
+  cctx.closePath(); cctx.fill(); cctx.stroke(); cctx.restore();
+  mctx.save();
+  mctx.filter = "blur(12px)"; mctx.drawImage(captureLayer, 0, 0);
+  mctx.restore();
   recalcScore();
   const gained = Math.max(1, score - before);
   floatingTexts.push({ x: player.x, y: player.y - 30, text: `+${gained}% LOVE`, life: 1.5 });
@@ -197,10 +211,11 @@ function closeTerritory() {
 }
 
 function hitLeaf(leaf) {
-  player.invuln = 1.8; player.trail = []; player.outside = false; player.x = W / 2; player.y = H / 2; timeLeft = Math.max(0, timeLeft - 3); shake = 14;
-  burst(leaf.x, leaf.y, 22, ["#9caa4d", "#5d7437", "#efbe55"], 210);
-  floatingTexts.push({ x: leaf.x, y: leaf.y, text: "-3 SECONDS", life: 1.4 });
-  showToast("LEAF ATTACK! BACK TO SAFETY"); beep(150, .25, "sawtooth", .05);
+  const hitX = leaf.x, hitY = leaf.y;
+  player.invuln = 1.8; player.trail = []; player.outside = false; player.x = W / 2; player.y = H / 2; player.vx = 0; player.vy = 0; timeLeft = Math.max(0, timeLeft - 10); shake = 14;
+  burst(hitX, hitY, 22, ["#9caa4d", "#5d7437", "#efbe55"], 210);
+  floatingTexts.push({ x: hitX, y: hitY, text: "-10 SECONDS", life: 1.4 });
+  showToast("TRAIL CUT! BACK TO THE START"); beep(150, .25, "sawtooth", .05);
 }
 
 function update(dt) {
@@ -222,7 +237,7 @@ function update(dt) {
   if (keys.has("ArrowDown") || keys.has("KeyS") || keys.has("down")) dy++;
   if (dx || dy) {
     const len = Math.hypot(dx, dy); dx /= len; dy /= len; player.angle = Math.atan2(dy, dx);
-    const speed = boost > 0 ? 285 : 190; player.vx += (dx * speed - player.vx) * Math.min(1, dt * 12); player.vy += (dy * speed - player.vy) * Math.min(1, dt * 12);
+    const speed = boost > 0 ? 856 : 380; player.vx += (dx * speed - player.vx) * Math.min(1, dt * 12); player.vy += (dy * speed - player.vy) * Math.min(1, dt * 12);
   } else { player.vx *= Math.pow(.0005, dt); player.vy *= Math.pow(.0005, dt); }
   player.x = clamp(player.x + player.vx * dt, 16, W - 16); player.y = clamp(player.y + player.vy * dt, 16, H - 16);
 
@@ -234,12 +249,18 @@ function update(dt) {
     if (safe && player.trail.length > 4) closeTerritory();
   }
 
-  nextApple -= dt; if (nextApple <= 0 && apples.length < 2) { spawnApple(); nextApple = rand(7, 11); }
+  nextApple -= dt; if (nextApple <= 0 && apples.length < 2) { spawnApple(); nextApple = rand(7, 11) / 1.6; }
   apples.forEach(a => { a.phase += dt * 3; a.life -= dt; if (dist(a, player) < 29) { a.hit = true; boost = 4; burst(a.x, a.y, 18, ["#f23b50", "#ffcf54", "#fff"], 170); showToast("APPLE POWER — ZOOM!"); beep(780, .1, "square", .035); } });
   apples = apples.filter(a => !a.hit && a.life > 0);
 
   nextLeaf -= dt; if (nextLeaf <= 0) { spawnLeaf(); nextLeaf = rand(.65, 1.25) * (timeLeft / 60 * .35 + .65); }
-  leaves.forEach(l => { l.x += l.vx * dt; l.y += l.vy * dt; l.angle += l.spin * dt; if (player.outside && player.invuln <= 0 && dist(l, player) < l.size + player.radius) { l.hit = true; hitLeaf(l); } });
+  leaves.forEach(l => {
+    l.x += l.vx * dt; l.y += l.vy * dt; l.angle += l.spin * dt;
+    if (!player.outside || player.invuln > 0) return;
+    const hitsPlayer = dist(l, player) < l.size + player.radius;
+    const hitsTrail = player.trail.some((point, i) => i > 0 && distanceToSegment(l, player.trail[i - 1], point) < l.size + 7);
+    if (hitsPlayer || hitsTrail) { l.hit = true; hitLeaf(l); }
+  });
   leaves = leaves.filter(l => !l.hit && l.x < W + 50 && l.y < H + 50);
 }
 
@@ -309,6 +330,7 @@ document.querySelectorAll(".touch-controls button").forEach(btn => {
   const dir = btn.dataset.dir; const down = e => { e.preventDefault(); keys.add(dir); }; const up = e => { e.preventDefault(); keys.delete(dir); };
   btn.addEventListener("pointerdown", down); btn.addEventListener("pointerup", up); btn.addEventListener("pointercancel", up); btn.addEventListener("pointerleave", up);
 });
-ui.startBtn.addEventListener("click", beginGame); ui.restartBtn.addEventListener("click", beginGame);
+document.querySelectorAll("[data-title-start]").forEach(button => button.addEventListener("click", beginGame));
+ui.restartBtn.addEventListener("click", beginGame);
 ui.sound.addEventListener("click", () => { muted = !muted; ui.sound.classList.toggle("muted", muted); if (!muted) beep(620); });
 resetMask(); recalcScore(); requestAnimationFrame(loop);

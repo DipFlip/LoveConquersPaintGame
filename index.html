@@ -44,16 +44,12 @@
         <div class="boost-pill" id="boostPill"><span>APPLE POWER</span><i id="boostBar"></i></div>
 
         <div class="start-screen panel" id="startScreen">
-          <div class="panel-sticker">60 SEC CITY MAKEOVER</div>
-          <div class="hero-heart"><span>♥</span></div>
-          <p class="kicker">A tiny game about making things nicer.</p>
-          <h1>LOVE<br /><em>CONQUERS</em><br />ALL.</h1>
-          <p class="intro">Loop through the dull city and return to the pink to claim everything inside. Dodge the leaves. Grab the apples. Spread the love.</p>
-          <button class="primary-btn" id="startBtn" type="button"><span>START NICEIFYING</span><b>→</b></button>
-          <div class="instructions">
-            <span><kbd>WASD</kbd> or <kbd>ARROWS</kbd> to move</span>
-            <span><i class="apple-icon">●</i> Apple = 4s boost</span>
-            <span><i class="leaf-icon">◆</i> Leaves hurt outside</span>
+          <img class="title-logo" src="/title_logo.png" alt="Love Conquerers" />
+          <div class="title-buttons">
+            <img src="/title_buttons.png" alt="" aria-hidden="true" />
+            <button id="startBtn" data-title-start class="title-hit title-hit-start" type="button" aria-label="Start game"></button>
+            <button data-title-start class="title-hit title-hit-settings" type="button" aria-label="Start game from settings button"></button>
+            <button data-title-start class="title-hit title-hit-quit" type="button" aria-label="Start game from quit button"></button>
           </div>
         </div>
 

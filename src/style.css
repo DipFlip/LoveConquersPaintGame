@@ -51,6 +51,46 @@ canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%
 .scanlines { position: absolute; inset: 0; pointer-events: none; opacity: .08; z-index: 2; background: repeating-linear-gradient(0deg, transparent 0 3px, #301833 4px); mix-blend-mode: multiply; }
 .panel { position: absolute; z-index: 10; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 32px; text-align: center; background: rgba(255, 249, 239, .91); backdrop-filter: blur(9px); transition: opacity .35s, visibility .35s; }
 .panel.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+.start-screen {
+  justify-content: flex-start;
+  overflow: hidden;
+  padding: 0;
+  background: url("/title_background.png") center center / cover no-repeat;
+  backdrop-filter: none;
+}
+.title-logo {
+  position: absolute;
+  z-index: 1;
+  top: -3%;
+  left: 50%;
+  width: min(660px, 60%);
+  height: auto;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 12px 18px rgba(53, 31, 17, .34));
+  animation: title-float 2.5s ease-in-out infinite;
+  pointer-events: none;
+}
+.title-buttons {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: -4%;
+  width: min(650px, 58%);
+  transform: translateX(-50%);
+  filter: drop-shadow(0 14px 20px rgba(39, 24, 13, .3));
+  transition: transform .2s ease, filter .2s ease;
+}
+.title-buttons img { display: block; width: 100%; height: auto; }
+.title-buttons:has(.title-hit:hover) { transform: translateX(-50%) translateY(-3px) scale(1.015); filter: drop-shadow(0 18px 24px rgba(39, 24, 13, .38)) brightness(1.05); }
+.title-hit { position: absolute; z-index: 1; cursor: pointer; border: 0; border-radius: 30%; background: transparent; }
+.title-hit:focus-visible { outline: 4px solid #fff7d9; outline-offset: -4px; box-shadow: 0 0 0 7px rgba(122, 52, 33, .8); }
+.title-hit-start { left: 20%; top: 23%; width: 60%; height: 30%; }
+.title-hit-settings { left: 16%; top: 54%; width: 33%; height: 19%; }
+.title-hit-quit { left: 52%; top: 54%; width: 32%; height: 19%; }
+@keyframes title-float {
+  0%, 100% { transform: translateX(-50%) translateY(0) rotate(-.5deg); }
+  50% { transform: translateX(-50%) translateY(-9px) rotate(.7deg); }
+}
 .panel-sticker { position: absolute; top: 26px; font: 500 10px "DM Mono", monospace; letter-spacing: .14em; border: 1.5px solid var(--plum); border-radius: 100px; padding: 8px 12px; background: var(--lime); transform: rotate(-1.5deg); }
 .hero-heart { display: grid; place-items: center; width: 64px; height: 58px; margin-bottom: 5px; color: white; background: var(--pink); border: 2px solid var(--plum); border-radius: 48% 52% 45% 55%; font-size: 29px; transform: rotate(6deg); box-shadow: 4px 5px 0 var(--plum); animation: bob 2s ease-in-out infinite; }
 .hero-heart span { transform: rotate(-6deg); }
@@ -94,6 +134,9 @@ footer p { margin: 0; } footer span { color: var(--pink); } footer code { color:
   canvas { right: auto; width: auto; min-width: 100%; max-width: none; height: 100%; }
   .sound-btn { width: 40px; height: 40px; }
   .panel { padding: 80px 24px 150px; justify-content: center; }
+  .start-screen { padding: 0; }
+  .title-logo { top: 4%; width: min(520px, 105%); }
+  .title-buttons { bottom: 4%; width: min(520px, 108%); }
   .panel-sticker { display: none; }
   h1 { font-size: clamp(45px, 16vw, 72px); }
   .intro { font-size: 12px; max-width: 340px; }
