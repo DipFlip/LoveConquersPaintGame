@@ -40,7 +40,7 @@ const joystickNub = document.querySelector("#joystickNub");
 const joystick = { active: false, pointerId: null, originX: 0, originY: 0, dx: 0, dy: 0, strength: 0 };
 
 const keys = new Set();
-const player = { x: W / 2, y: H / 2, vx: 0, vy: 0, angle: 0, radius: 13, outside: false, trail: [], invuln: 0 };
+const player = { x: W / 2, y: H / 2, vx: 0, vy: 0, angle: 0, radius: 13, outside: false, trail: [], invuln: 0, respawn: 0, respawnFromX: W / 2, respawnFromY: H / 2 };
 let state = "menu";
 let last = performance.now();
 let timeLeft = 60;
@@ -249,7 +249,7 @@ function spawnLeaf() {
 function beginGame() {
   releaseJoystick();
   resetMask(); recalcScore();
-  Object.assign(player, { x: W / 2, y: H / 2, vx: 0, vy: 0, angle: 0, outside: false, trail: [], invuln: 1 });
+  Object.assign(player, { x: W / 2, y: H / 2, vx: 0, vy: 0, angle: 0, outside: false, trail: [], invuln: 1, respawn: 0, respawnFromX: W / 2, respawnFromY: H / 2 });
   timeLeft = 60; boost = 0; apples = []; leaves = []; particles = []; floatingTexts = []; nextApple = 1.8; nextLeaf = .5;
   ui.time.textContent = "1:00"; ui.boost.classList.remove("show"); ui.start.classList.add("hidden"); ui.end.classList.add("hidden");
   state = "playing"; last = performance.now();
@@ -280,10 +280,24 @@ function closeTerritory() {
 
 function hitLeaf(leaf) {
   const hitX = leaf.x, hitY = leaf.y;
-  player.invuln = 1.8; player.trail = []; player.outside = false; player.x = W / 2; player.y = H / 2; player.vx = 0; player.vy = 0; timeLeft = Math.max(0, timeLeft - 10); shake = 14;
+  releaseJoystick();
+  player.invuln = 2.2; player.respawn = 2; player.respawnFromX = player.x; player.respawnFromY = player.y;
+  player.trail = []; player.outside = false; player.vx = 0; player.vy = 0; timeLeft = Math.max(0, timeLeft - 10); shake = 14;
   burst(hitX, hitY, 22, ["#9caa4d", "#5d7437", "#efbe55"], 210);
   floatingTexts.push({ x: hitX, y: hitY, text: "-10 SECONDS", life: 1.4 });
-  showToast("TRAIL CUT! BACK TO THE START"); beep(150, .25, "sawtooth", .05);
+  showToast("TRAIL CUT! RETURNING TO SAFETY"); beep(150, .25, "sawtooth", .05);
+}
+
+function updatePlayerControl(dt) {
+  if (player.respawn > 0) {
+    player.respawn = Math.max(0, player.respawn - dt);
+    const progress = 1 - player.respawn / 2;
+    const eased = 1 - Math.pow(1 - progress, 3);
+    player.x = player.respawnFromX + (W / 2 - player.respawnFromX) * eased;
+    player.y = player.respawnFromY + (H / 2 - player.respawnFromY) * eased - Math.sin(progress * Math.PI) * 38;
+    player.angle += dt * 11;
+    if (player.respawn === 0) { player.x = W / 2; player.y = H / 2; player.angle = 0; }
+  } else updatePlayerControl(dt);
 }
 
 function update(dt) {
@@ -321,7 +335,7 @@ function update(dt) {
   }
 
   nextApple -= dt; if (nextApple <= 0 && apples.length < 2) { spawnApple(); nextApple = rand(7, 11) / 1.6; }
-  apples.forEach(a => { a.phase += dt * 3; a.life -= dt; if (dist(a, player) < 29) { a.hit = true; boost = 4; burst(a.x, a.y, 18, ["#f23b50", "#ffcf54", "#fff"], 170); showToast("APPLE POWER — ZOOM!"); beep(780, .1, "square", .035); } });
+  apples.forEach(a => { a.phase += dt * 3; a.life -= dt; if (player.respawn <= 0 && dist(a, player) < 29) { a.hit = true; boost = 4; burst(a.x, a.y, 18, ["#f23b50", "#ffcf54", "#fff"], 170); showToast("APPLE POWER — ZOOM!"); beep(780, .1, "square", .035); } });
   apples = apples.filter(a => !a.hit && a.life > 0);
 
   nextLeaf -= dt; if (nextLeaf <= 0) { spawnLeaf(); nextLeaf = rand(.65, 1.25) * (timeLeft / 60 * .35 + .65); }
@@ -362,8 +376,9 @@ function render() {
   }
 
   leaves.forEach(l => {
+    const overNiceArea = isSafe(l.x, l.y);
     ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.angle); ctx.fillStyle = "rgba(43,29,47,.22)"; ctx.beginPath(); ctx.ellipse(3, 5, l.size * .65, l.size, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#8fa344"; ctx.strokeStyle = "#42562e"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, l.size); ctx.bezierCurveTo(-l.size, l.size * .35, -l.size, -l.size * .55, 0, -l.size); ctx.bezierCurveTo(l.size, -l.size * .35, l.size, l.size * .5, 0, l.size); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, l.size); ctx.lineTo(0, -l.size * .8); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = overNiceArea ? "#79ad52" : "#98603a"; ctx.strokeStyle = overNiceArea ? "#355d32" : "#4f3023"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, l.size); ctx.bezierCurveTo(-l.size, l.size * .35, -l.size, -l.size * .55, 0, -l.size); ctx.bezierCurveTo(l.size, -l.size * .35, l.size, l.size * .5, 0, l.size); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, l.size); ctx.lineTo(0, -l.size * .8); ctx.stroke(); ctx.restore();
   });
 
   apples.forEach(a => {
@@ -373,7 +388,9 @@ function render() {
   });
 
   if (state === "playing") {
-    ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(player.angle); if (boost > 0) { for (let i = 0; i < 3; i++) drawHeart(ctx, -30 - i * 13 - Math.random() * 4, rand(-7, 7), 8 - i, `rgba(255,79,145,${.7 - i * .18})`); }
+    ctx.save();
+    if (player.respawn > 0) ctx.globalAlpha = Math.sin(performance.now() / 85) > 0 ? 1 : .22;
+    ctx.translate(player.x, player.y); ctx.rotate(player.angle); if (boost > 0 && player.respawn <= 0) { for (let i = 0; i < 3; i++) drawHeart(ctx, -30 - i * 13 - Math.random() * 4, rand(-7, 7), 8 - i, `rgba(255,79,145,${.7 - i * .18})`); }
     ctx.shadowColor = "rgba(44,21,49,.32)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 6; drawHeart(ctx, 0, 0, 28, player.invuln > 0 && Math.sin(performance.now() / 70) > 0 ? "#fff" : "#ff4f91"); ctx.shadowColor = "transparent";
     ctx.fillStyle = "#2b1d2f"; ctx.beginPath(); ctx.arc(8, -5, 2.3, 0, 6.3); ctx.arc(13, -1, 2.3, 0, 6.3); ctx.fill(); ctx.restore();
   }
