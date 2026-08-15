@@ -119,7 +119,7 @@ kbd { padding: 3px 6px; border: 1px solid #a993a8; border-bottom-width: 2px; bor
 .boost-pill span { display: block; margin-bottom: 5px; font: 500 8px "DM Mono", monospace; letter-spacing: .14em; }
 .boost-pill i { display: block; width: 100%; height: 4px; border-radius: 4px; background: var(--pink); transform-origin: left; }
 
-.virtual-joystick { position: absolute; z-index: 7; display: none; width: 116px; height: 116px; margin: -58px 0 0 -58px; pointer-events: none; filter: drop-shadow(0 7px 10px rgba(43, 29, 47, .28)); }
+.virtual-joystick { position: absolute; z-index: 7; display: none; width: 116px; height: 116px; margin: -58px 0 0 -58px; opacity: .62; pointer-events: none; filter: drop-shadow(0 7px 10px rgba(43, 29, 47, .22)); }
 .virtual-joystick.active { display: block; }
 .joystick-ring { position: absolute; inset: 0; border: 3px solid rgba(74, 36, 79, .82); border-radius: 50%; background: rgba(255, 249, 239, .56); box-shadow: inset 0 0 0 8px rgba(255,255,255,.2), 3px 4px 0 rgba(74,36,79,.75); backdrop-filter: blur(5px); }
 .joystick-ring::before, .joystick-ring::after { content: ""; position: absolute; inset: 50% auto auto 50%; background: rgba(74,36,79,.18); transform: translate(-50%, -50%); }

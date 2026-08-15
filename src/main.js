@@ -9,6 +9,9 @@ const H = canvas.height;
 const mask = document.createElement("canvas");
 mask.width = W; mask.height = H;
 const mctx = mask.getContext("2d", { willReadFrequently: true });
+const solidMask = document.createElement("canvas");
+solidMask.width = W; solidMask.height = H;
+const sctx = solidMask.getContext("2d", { willReadFrequently: true });
 const dull = document.createElement("canvas");
 const nice = document.createElement("canvas");
 const reveal = document.createElement("canvas");
@@ -16,6 +19,10 @@ const captureLayer = document.createElement("canvas");
 dull.width = nice.width = reveal.width = captureLayer.width = W; dull.height = nice.height = reveal.height = captureLayer.height = H;
 const rctx = reveal.getContext("2d");
 const cctx = captureLayer.getContext("2d");
+const CAPTURE_SCALE = 4;
+const captureGrid = document.createElement("canvas");
+captureGrid.width = Math.ceil(W / CAPTURE_SCALE); captureGrid.height = Math.ceil(H / CAPTURE_SCALE);
+const gridCtx = captureGrid.getContext("2d", { willReadFrequently: true });
 
 const ui = {
   start: document.querySelector("#startScreen"), end: document.querySelector("#endScreen"),
@@ -63,19 +70,54 @@ function distanceToSegment(point, start, end) {
   return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
 }
 
-function pointInPolygon(point, polygon) {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const a = polygon[i], b = polygon[j];
-    const crosses = (a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
-    if (crosses) inside = !inside;
-  }
-  return inside;
-}
-
 function formatTime(seconds) {
   const whole = Math.max(0, Math.ceil(seconds));
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+function buildEnclosedCapture(trail) {
+  const gw = captureGrid.width, gh = captureGrid.height, cellCount = gw * gh;
+  gridCtx.clearRect(0, 0, gw, gh);
+  gridCtx.imageSmoothingEnabled = true;
+  gridCtx.drawImage(solidMask, 0, 0, W, H, 0, 0, gw, gh);
+  const existingPixels = gridCtx.getImageData(0, 0, gw, gh).data;
+  const existing = new Uint8Array(cellCount);
+  for (let i = 0; i < cellCount; i++) existing[i] = existingPixels[i * 4 + 3] > 30 ? 1 : 0;
+
+  gridCtx.save();
+  gridCtx.strokeStyle = "#fff"; gridCtx.lineWidth = 10; gridCtx.lineCap = "round"; gridCtx.lineJoin = "round";
+  gridCtx.beginPath(); gridCtx.moveTo(trail[0].x / CAPTURE_SCALE, trail[0].y / CAPTURE_SCALE);
+  trail.slice(1).forEach(point => gridCtx.lineTo(point.x / CAPTURE_SCALE, point.y / CAPTURE_SCALE));
+  gridCtx.stroke(); gridCtx.restore();
+
+  const barrierPixels = gridCtx.getImageData(0, 0, gw, gh).data;
+  const blocked = new Uint8Array(cellCount), reachable = new Uint8Array(cellCount), queue = new Int32Array(cellCount);
+  for (let i = 0; i < cellCount; i++) blocked[i] = barrierPixels[i * 4 + 3] > 30 ? 1 : 0;
+  let head = 0, tail = 0;
+  const enqueue = index => { if (!blocked[index] && !reachable[index]) { reachable[index] = 1; queue[tail++] = index; } };
+  for (let x = 0; x < gw; x++) { enqueue(x); enqueue((gh - 1) * gw + x); }
+  for (let y = 1; y < gh - 1; y++) { enqueue(y * gw); enqueue(y * gw + gw - 1); }
+  while (head < tail) {
+    const index = queue[head++], x = index % gw;
+    if (x > 0) enqueue(index - 1); if (x < gw - 1) enqueue(index + 1);
+    if (index >= gw) enqueue(index - gw); if (index < cellCount - gw) enqueue(index + gw);
+  }
+
+  const capturePixels = gridCtx.createImageData(gw, gh);
+  const captured = new Uint8Array(cellCount);
+  for (let i = 0; i < cellCount; i++) {
+    if (!reachable[i] && !existing[i]) {
+      captured[i] = 1;
+      capturePixels.data[i * 4] = capturePixels.data[i * 4 + 1] = capturePixels.data[i * 4 + 2] = capturePixels.data[i * 4 + 3] = 255;
+    }
+  }
+  gridCtx.putImageData(capturePixels, 0, 0);
+  cctx.clearRect(0, 0, W, H); cctx.imageSmoothingEnabled = false;
+  cctx.drawImage(captureGrid, 0, 0, gw, gh, 0, 0, W, H);
+  return point => {
+    const x = clamp(Math.floor(point.x / CAPTURE_SCALE), 0, gw - 1), y = clamp(Math.floor(point.y / CAPTURE_SCALE), 0, gh - 1);
+    return captured[y * gw + x] === 1;
+  };
 }
 
 function roundedRect(g, x, y, w, h, r) {
@@ -140,20 +182,24 @@ Promise.all([loadMap("/stad_dull.png", dull), loadMap("/stad_nice.png", nice)]).
 });
 
 function resetMask() {
-  mctx.clearRect(0, 0, W, H);
-  const glow = mctx.createRadialGradient(W / 2, H / 2, 8, W / 2, H / 2, 80);
-  glow.addColorStop(0, "#fff"); glow.addColorStop(.78, "#fff"); glow.addColorStop(1, "rgba(255,255,255,0)");
-  mctx.fillStyle = glow; mctx.beginPath(); mctx.arc(W / 2, H / 2, 80, 0, Math.PI * 2); mctx.fill();
+  sctx.clearRect(0, 0, W, H);
+  sctx.fillStyle = "#fff"; sctx.beginPath(); sctx.arc(W / 2, H / 2, 70, 0, Math.PI * 2); sctx.fill();
+  refreshDisplayMask();
   baselineFilled = countMaskSamples().filled;
+}
+
+function refreshDisplayMask() {
+  mctx.clearRect(0, 0, W, H);
+  mctx.save(); mctx.filter = "blur(12px)"; mctx.drawImage(solidMask, 0, 0); mctx.restore();
 }
 
 function isSafe(x, y) {
   if (x < 0 || x >= W || y < 0 || y >= H) return false;
-  return mctx.getImageData(x | 0, y | 0, 1, 1).data[3] > 80;
+  return sctx.getImageData(x | 0, y | 0, 1, 1).data[3] > 80;
 }
 
 function countMaskSamples() {
-  const data = mctx.getImageData(0, 0, W, H).data;
+  const data = sctx.getImageData(0, 0, W, H).data;
   let filled = 0, total = 0;
   for (let y = 0; y < H; y += 8) for (let x = 0; x < W; x += 8) { total++; if (data[(y * W + x) * 4 + 3] > 80) filled++; }
   return { filled, total };
@@ -213,15 +259,10 @@ function beginGame() {
 function closeTerritory() {
   if (player.trail.length < 5) { player.trail = []; player.outside = false; return; }
   const before = score;
-  cctx.clearRect(0, 0, W, H);
-  cctx.save(); cctx.fillStyle = "#fff"; cctx.strokeStyle = "#fff"; cctx.lineJoin = "round"; cctx.lineCap = "round"; cctx.lineWidth = 28;
-  cctx.beginPath(); cctx.moveTo(player.trail[0].x, player.trail[0].y);
-  player.trail.slice(1).forEach(p => cctx.lineTo(p.x, p.y));
-  cctx.closePath(); cctx.fill(); cctx.stroke(); cctx.restore();
-  mctx.save();
-  mctx.filter = "blur(12px)"; mctx.drawImage(captureLayer, 0, 0);
-  mctx.restore();
-  const capturedLeaves = leaves.filter(leaf => !leaf.hit && pointInPolygon(leaf, player.trail));
+  const wasCaptured = buildEnclosedCapture(player.trail);
+  sctx.drawImage(captureLayer, 0, 0);
+  refreshDisplayMask();
+  const capturedLeaves = leaves.filter(leaf => !leaf.hit && wasCaptured(leaf));
   capturedLeaves.forEach(leaf => {
     leaf.hit = true;
     timeLeft += 5;
@@ -268,10 +309,11 @@ function update(dt) {
     const inputStrength = joystick.active ? Math.max(.28, joystick.strength) : 1;
     const speed = (boost > 0 ? 856 : 380) * inputStrength; player.vx += (dx * speed - player.vx) * Math.min(1, dt * 12); player.vy += (dy * speed - player.vy) * Math.min(1, dt * 12);
   } else { player.vx *= Math.pow(.0005, dt); player.vy *= Math.pow(.0005, dt); }
+  const previousPosition = { x: player.x, y: player.y };
   player.x = clamp(player.x + player.vx * dt, 16, W - 16); player.y = clamp(player.y + player.vy * dt, 16, H - 16);
 
   const safe = isSafe(player.x, player.y);
-  if (!safe && !player.outside) { player.outside = true; player.trail = [{ x: player.x, y: player.y }]; beep(330, .07, "triangle", .025); }
+  if (!safe && !player.outside) { player.outside = true; player.trail = [previousPosition, { x: player.x, y: player.y }]; beep(330, .07, "triangle", .025); }
   if (player.outside) {
     const prev = player.trail[player.trail.length - 1];
     if (dist(prev, player) > 8) player.trail.push({ x: player.x, y: player.y });
